@@ -1,0 +1,5 @@
+html,
+body {
+  background: transparent !important; /* 再次确保 html 本身不带颜色 */
+  overflow: hidden;
+}
