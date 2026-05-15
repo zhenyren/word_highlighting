@@ -10,7 +10,8 @@ async function init() {
   const window = getCurrentWindow();
   const label = window.label;
 
-  const Component = label === "mini" ? Mini : App;
+  const Component =
+    label === "word_highlight_assistant" || label === "mini" ? Mini : App;
 
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>

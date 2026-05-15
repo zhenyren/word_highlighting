@@ -11,15 +11,25 @@ function App() {
     setGreetMsg(await invoke("greet", { name }));
   }
 
-  async function onOpenComponent() {
-    await invoke("show_mini_window");
+  async function onShowWordHighlightAssistantWindowClick() {
+    await invoke("show_word_highlight_assistant_window");
+  }
+  async function onCloseWordHighlightAssistantWindowClick() {
+    await invoke("close_word_highlight_assistant_window");
   }
 
   return (
     <main className="container">
       <p>{greetMsg}</p>
       <div>
-        <button onClick={onOpenComponent}>打开组件</button>
+        <button onClick={onShowWordHighlightAssistantWindowClick}>
+          打开组件
+        </button>
+      </div>
+      <div>
+        <button onClick={onCloseWordHighlightAssistantWindowClick}>
+          关闭组件
+        </button>
       </div>
       {/* <h1>Welcome to Tauri + React</h1>
 
