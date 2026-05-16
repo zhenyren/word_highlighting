@@ -23,3 +23,13 @@ tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rdev = "0.5.3"
+
+# 必须使用 0.2.x 或 0.3.x 版本（基于新版 API）。
+# 如果误用了老的 0.1.x 版本，Enigo 的初始化和按键语法完全不同
+enigo = { version = "0.3.0", features = ["serde"] }
+# 懒加载状态库
+lazy_static = "1.5.0"
+
+# rdev = "0.5"       # 跨平台全局输入
+tokio = "1.0"      # 异步监听
