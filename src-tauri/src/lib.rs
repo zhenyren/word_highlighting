@@ -1,7 +1,7 @@
 use rdev::{listen, Event, EventType};
 use std::sync::mpsc::channel;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -74,6 +74,15 @@ static mut LAST_MOUSE_POS: (i32, i32) = (0, 0);
 /// 关键：是否禁止发送 set_text 事件（直到下次鼠标按下）
 static mut SUPPRESS_SET_TEXT: bool = false;
 
+/// 双击检测：程序启动时间
+static mut START_TIME: Option<Instant> = None;
+
+/// 双击检测：上次点击的毫秒数
+static mut LAST_CLICK_MS: u64 = 0;
+
+/// 双击间隔阈值（毫秒）
+const DOUBLE_CLICK_GAP: u64 = 500;
+
 #[tauri::command]
 fn get_mouse_position() -> Result<(i32, i32), String> {
     unsafe {
@@ -94,6 +103,13 @@ fn toolbar_closed() {
 }
 
 fn start_global_listener(app: AppHandle) {
+    // 保存程序启动时间
+    unsafe {
+        if START_TIME.is_none() {
+            START_TIME = Some(Instant::now());
+        }
+    }
+
     // 创建通道，用于从 rdev 回调发送鼠标事件
     let (tx, rx) = channel::<MouseEvent>();
 
@@ -131,26 +147,56 @@ fn start_global_listener(app: AppHandle) {
         while let Ok(event) = rx.recv() {
             match event {
                 MouseEvent::Move(x, y) => {
-                    println!("鼠标移动：({:.1}, {:.1})", x, y);
-                    Logger::info("鼠标移动", &[&format!("({:.1}, {:.1})", x, y)]);
+                    // /println!("鼠标移动：({:.1}, {:.1})", x, y);
+                    // Logger::info("鼠标移动", &[&format!("({:.1}, {:.1})", x, y)]);
                     let _ = app_clone.emit("global_mouse_move", (x, y));
                 }
                 MouseEvent::Down(name) => {
-                    Logger::info("鼠标按下", &[&name]);
+                    // Logger::info("鼠标按下", &[&name]);
 
                     // 关键：鼠标按下时重置禁止标志
                     unsafe {
                         if SUPPRESS_SET_TEXT {
                             SUPPRESS_SET_TEXT = false;
-                            Logger::info("鼠标按下", &["重置 SUPPRESS_SET_TEXT"]);
+                            // Logger::info("鼠标按下", &["重置 SUPPRESS_SET_TEXT"]);
                         }
                     }
 
                     let _ = app_clone.emit("global_mouse_down", name);
                 }
                 MouseEvent::Up(name) => {
-                    Logger::info("鼠标松开", &[&name]);
+                    Logger::info("鼠标松开", &[&format!("按钮: {}", name)]);
                     let _ = app_clone.emit("global_mouse_up", name.clone());
+
+                    // 【最简单的双击检测】
+                    let should_show = unsafe {
+                        if let Some(start) = START_TIME {
+                            let now_ms = start.elapsed().as_millis() as u64;
+                            let old_ms = LAST_CLICK_MS;
+                            let diff = now_ms - old_ms;
+                            LAST_CLICK_MS = now_ms;
+
+                            Logger::info(
+                                "双击检测",
+                                &[&format!(
+                                    "当前: {}ms, 上次: {}ms, 间隔: {}ms",
+                                    now_ms, old_ms, diff
+                                )],
+                            );
+
+                            // 如果间隔 <= 500ms，就显示（不管是不是第一次，第一次是 0 没关系）
+                            diff <= DOUBLE_CLICK_GAP
+                        } else {
+                            Logger::info("双击检测", &["START_TIME 没初始化"]);
+                            false
+                        }
+                    };
+
+                    Logger::info("双击检测", &[&format!("是否显示: {}", should_show)]);
+
+                    if !should_show {
+                        continue; // 继续下一次事件循环！不是 return！
+                    }
 
                     // 延迟处理，确保选择完成
                     let app_for_selection = app_clone.clone();
@@ -166,7 +212,7 @@ fn start_global_listener(app: AppHandle) {
                         }
 
                         if let Some(text) = get_selected_text(&app_for_selection) {
-                            Logger::info("选中的文字", &[&text]);
+                            // Logger::info("选中的文字", &[&text]);
 
                             // 获取悬浮窗口并显示
                             if let Some(toolbar_window) =
@@ -179,14 +225,135 @@ fn start_global_listener(app: AppHandle) {
                                     text.clone(),
                                 );
 
-                                // 获取鼠标位置并移动窗口到鼠标附近
+                                // 获取鼠标位置并移动窗口到鼠标附近（带边界检测）
                                 unsafe {
-                                    let (x, y) = LAST_MOUSE_POS;
+                                    let (mouse_x, mouse_y) = LAST_MOUSE_POS;
+
+                                    // 窗口尺寸
+                                    let window_width = 350i32;
+                                    let window_height = 40i32;
+                                    let margin = 10i32; // 边距
+
+                                    // 获取所有显示器信息,找到鼠标所在的显示器
+                                    let monitors =
+                                        app_for_selection.available_monitors().unwrap_or_default();
+
+                                    // 调试：打印所有显示器信息
+                                    for (i, m) in monitors.iter().enumerate() {
+                                        let pos = m.position();
+                                        let size = m.size();
+                                        Logger::info(
+                                            "显示器",
+                                            &[&format!(
+                                                "#{} 位置: ({}, {}), 尺寸: {}x{}",
+                                                i, pos.x, pos.y, size.width, size.height
+                                            )],
+                                        );
+                                    }
+
+                                    let (screen_x, screen_y, screen_width, screen_height) =
+                                        monitors
+                                            .iter()
+                                            .find_map(|m| {
+                                                let pos = m.position();
+                                                let size = m.size();
+
+                                                // Windows: rdev 和 Tauri 都使用物理像素,直接比较
+                                                // 检查鼠标是否在此显示器范围内
+                                                if mouse_x >= pos.x
+                                                    && mouse_x < pos.x + size.width as i32
+                                                    && mouse_y >= pos.y
+                                                    && mouse_y < pos.y + size.height as i32
+                                                {
+                                                    Some((
+                                                        pos.x,
+                                                        pos.y,
+                                                        size.width as i32,
+                                                        size.height as i32,
+                                                    ))
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .unwrap_or_else(|| {
+                                                // 如果找不到匹配的显示器,使用主显示器
+                                                app_for_selection
+                                                    .primary_monitor()
+                                                    .ok()
+                                                    .flatten()
+                                                    .map(|m| {
+                                                        let pos = m.position();
+                                                        let size = m.size();
+                                                        (
+                                                            pos.x,
+                                                            pos.y,
+                                                            size.width as i32,
+                                                            size.height as i32,
+                                                        )
+                                                    })
+                                                    .unwrap_or((0, 0, 1920, 1080))
+                                            });
+
+                                    // 计算可用工作区（扣除任务栏）
+                                    let work_area = toolbar_window
+                                        .inner_size()
+                                        .map(|s| (s.width as i32, s.height as i32))
+                                        .unwrap_or((screen_width, screen_height));
+
+                                    Logger::info(
+                                        "显示器信息",
+                                        &[&format!(
+                                            "鼠标: ({}, {}), 屏幕: ({}, {}) {}x{}, 工作区: {:?}",
+                                            mouse_x,
+                                            mouse_y,
+                                            screen_x,
+                                            screen_y,
+                                            screen_width,
+                                            screen_height,
+                                            work_area
+                                        )],
+                                    );
+
+                                    // 水平方向: 检查右边是否够放
+                                    let screen_right = screen_x + screen_width;
+                                    let right_space = screen_right - mouse_x;
+
+                                    let pos_x: i32;
+                                    if right_space >= window_width + margin {
+                                        // 右边够,放右边
+                                        pos_x = mouse_x + margin;
+                                        Logger::info("水平", &["右边够,放右边"]);
+                                    } else {
+                                        // 右边不够,贴右边
+                                        pos_x = screen_right - window_width;
+                                        Logger::info("水平", &["右边不够,贴右边"]);
+                                    }
+
+                                    // 垂直方向: 检查下边是否够放
+                                    let screen_bottom = screen_y + screen_height;
+                                    let bottom_space = screen_bottom - mouse_y;
+
+                                    let pos_y: i32;
+                                    if bottom_space >= window_height + margin {
+                                        // 下边够,放下边
+                                        pos_y = mouse_y + margin;
+                                        Logger::info("垂直", &["下边够,放下边"]);
+                                    } else {
+                                        // 下边不够,贴下边
+                                        pos_y = screen_bottom - window_height;
+                                        Logger::info("垂直", &["下边不够,贴下边"]);
+                                    }
+
+                                    Logger::info(
+                                        "窗口位置",
+                                        &[&format!(
+                                            "鼠标: ({}, {}), 最终: ({}, {})",
+                                            mouse_x, mouse_y, pos_x, pos_y
+                                        )],
+                                    );
+
                                     let _ = toolbar_window.set_position(tauri::Position::Physical(
-                                        tauri::PhysicalPosition {
-                                            x: x - 175,
-                                            y: y + 20,
-                                        },
+                                        tauri::PhysicalPosition { x: pos_x, y: pos_y },
                                     ));
                                 }
 
@@ -215,7 +382,7 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
             Logger::success(
                 "系统启动",
-                &[&"[纯鼠标] 全局划词监听已启动...", &window.label()],
+                &[&"[双击触发] 全局划词监听已启动...", &window.label()],
             );
             Ok(())
         })

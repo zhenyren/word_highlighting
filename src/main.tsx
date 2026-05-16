@@ -16,22 +16,22 @@ function Root() {
     invoke("start_global_hook");
     listen("global_mouse_move", (e) => {
       const [x, y] = e.payload as number[];
-      console.log("全局鼠标：", x, y);
+      // console.log("全局鼠标：", x, y);
     });
 
     // 监听 全局鼠标按下
     listen("global_mouse_down", (e) => {
-      console.log("全局按下：", e.payload);
+      // console.log("全局按下：", e.payload);
     });
 
     // 监听 全局鼠标松开
     listen("global_mouse_up", (e) => {
-      console.log("全局松开：", e.payload);
+      // console.log("全局松开：", e.payload);
     });
 
     // 监听 全局滚轮
     listen("global_wheel", (e) => {
-      console.log("滚轮：", e.payload);
+      // console.log("滚轮：", e.payload);
     });
   }, []);
 
