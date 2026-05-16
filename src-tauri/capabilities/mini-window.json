@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "mini-window",
   "description": "Capability for the mini window",
-  "windows": ["mini"],
+  "windows": [
+    "word_highlight_assistant"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-close",

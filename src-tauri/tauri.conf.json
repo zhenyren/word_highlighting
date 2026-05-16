@@ -16,6 +16,18 @@
         "title": "tauri-app",
         "width": 800,
         "height": 600
+      },
+      {
+        "label": "word_highlight_assistant",
+        "title": "单词助手",
+        "width": 350,
+        "height": 40,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "acceptFirstMouse": true,
+        "center": true
       }
     ],
     "security": {
