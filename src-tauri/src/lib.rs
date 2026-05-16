@@ -1,6 +1,12 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod commands;
-use commands::{close_word_highlight_assistant_window, show_word_highlight_assistant_window};
+use commands::{
+    close_word_highlight_assistant_window,
+    show_word_highlight_assistant_window,
+    start_selection_listener,
+    stop_selection_listener,
+    show_text_in_window,
+};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -16,6 +22,9 @@ pub fn run() {
             greet,
             show_word_highlight_assistant_window,
             close_word_highlight_assistant_window,
+            start_selection_listener,
+            stop_selection_listener,
+            show_text_in_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

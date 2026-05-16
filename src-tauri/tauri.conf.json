@@ -27,7 +27,9 @@
         "transparent": true,
         "shadow": true,
         "acceptFirstMouse": true,
-        "center": true
+        "center": true,
+        "visible": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
