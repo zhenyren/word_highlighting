@@ -20,14 +20,20 @@
       {
         "label": "word_highlight_assistant",
         "title": "单词助手",
+        "url": "src/floating-toolbar.html",
         "width": 350,
         "height": 40,
+        "minWidth": 350,
+        "minHeight": 40,
+        "maxWidth": 350,
+        "maxHeight": 40,
+        "resizable": false,
         "alwaysOnTop": true,
         "decorations": false,
         "transparent": true,
         "shadow": true,
         "acceptFirstMouse": true,
-        "center": true,
+        "center": false,
         "visible": false,
         "skipTaskbar": true
       }
